@@ -3,8 +3,8 @@
         [Int]$Length = 24
     )
     
-    $AvailableChars = [char] 33 .. [char] 126
-
+    $AvailableChars = ([char] 33 .. [char] 57) + ([char] 65 .. [char] 90) + ([char] 97 .. [char] 122)
+    Write-Host $AvailableChars
     $Password = ""
 
     for ($i = 0; $i -lt $Length; $i++) {
@@ -159,7 +159,7 @@ function New-LabUser {
             Office = $Office
             City = $OfficeCountry[1]
             Country = $OfficeCountry[0]
-            Password = New-Password | ConvertTo-SecureString -AsPlainText -Force
+            AccountPassword = New-Password | ConvertTo-SecureString -AsPlainText -Force
             Department = $Department
             Description = $Department
             ChangePasswordAtLogon = $True
