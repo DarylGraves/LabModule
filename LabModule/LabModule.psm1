@@ -4,7 +4,7 @@
     )
     
     $AvailableChars = ([char] 33 .. [char] 57) + ([char] 65 .. [char] 90) + ([char] 97 .. [char] 122)
-    Write-Host $AvailableChars
+    
     $Password = ""
 
     for ($i = 0; $i -lt $Length; $i++) {
