@@ -1,4 +1,39 @@
-﻿<#
+﻿function New-Password {
+    param (
+        [Int]$Length = 24
+    )
+    
+    $AvailableChars = [char] 33 .. [char] 126
+
+    $Password = ""
+
+    for ($i = 0; $i -lt $Length; $i++) {
+        $Password += $AvailableChars[(Get-Random -Minimum 0 -Maximum $AvailableChars.Count)]
+    }
+
+    return $Password
+}
+
+function Get-Department {
+    $Departments = @(
+                    "Administration",
+                    "Facilities",
+                    "Finance",
+                    "Health and Safety",
+                    "Human Resources",
+                    "Information Technology",
+                    "Project Worker"
+                )
+    
+    # 2/3rds of the workforce should be Project Workers
+    if ((Get-Random -Minimum 0 -Maximum 3) -eq 2) {
+        return $Departments[(Get-Random -Minimum 0 -Maximum $Departments.Count)]   
+    } else {
+        return $Departments[($Departments.Count - 1)]
+    }
+}
+
+<#
 .SYNOPSIS
 Creates an office organizational unit and the users, computers, clients and servers organizational units inside.
 
@@ -57,4 +92,84 @@ function Remove-LabOffice {
     #TODO: Remove-LabOffice: Better validation - What happens if computers/users are in there? Move to Unsorted OU? What if Unsorted OU isn't there?
     #TODO: Remove-LabOffice: Confirm Switch so you don't have to confirm it
     #TODO: Remove-LabOffice: Credentials parameter
+}
+
+<#
+.SYNOPSIS
+Creates random user(s) in Active Directory.
+
+.DESCRIPTION
+Creates random user(s) in Active Directory and places them in the Office OU.
+
+.PARAMETER Office
+User's office, e.g "GB-Reading"
+
+.PARAMETER Quantity
+Number of users to create.
+
+.EXAMPLE
+New-LabUser -Office "GB-Reading" -Quantity 10
+(This creates 10 users in the Reading office.)
+#>
+function New-LabUser {
+    param (
+        [Parameter(Mandatory=$True)]
+        [String]$Office,
+        [Int]$Quantity
+    )
+    
+
+    #TODO: If moving back to the Scratchpad you need to swap this variable.
+    #$DataFolderPath = $MyInvocation.PSScriptRoot + "\LabModule\Data\"
+    $DataFolderPath = $MyInvocation.PSScriptRoot + "\Data\"
+
+    $FirstnamesFile = $DataFolderPath + "Firstnames.txt"
+    $SurnamesFile = $DataFolderPath + "Surnames.txt"
+
+    $Firstnames = Get-Content $FirstnamesFile
+    $Surnames = Get-Content $SurnamesFile
+
+    $OU = "OU=Users,OU=$Office,OU=Offices,Dc=lab,dc=pri"
+
+    try {
+        $EmployeeNumber = Get-AdUser -filter * -properties EmployeeNumber | Sort-Object EmployeeNumber | Select-Object -First EmployeeNumber
+    }
+    catch {
+        # RSAT Tools aren't installed, no biggy.
+    }
+
+    if ($Quantity -eq 0) { $Quantity = 1 }
+    if ($EmployeeNumber -eq 0) { $EmployeeNumber = 1 }
+
+    $Users = for ($i = 0; $i -lt $Quantity; $i++) {
+        $Firstname = $Firstnames[(Get-Random -Minimum 0 -Maximum $Firstnames.Length)]
+        $Surname = $Surnames[(Get-Random -Minimum 0 -Maximum $Surnames.Length)]
+        $Username = ($Firstname[0] + ($Surname -Replace " ", "")).ToLower()
+        $OfficeCountry = $Office -split "-"
+        $Department = Get-Department
+
+        #TODO: If username already exists...
+
+        $User = [PSCustomObject]@{
+            EmployeeNumber = $EmployeeNumber + $i
+            Firstname = $Firstname
+            Surname = $Surname
+            Fullname = $Firstname + " " + $Surname
+            Username = $Username
+            Office = $Office
+            City = $OfficeCountry[1]
+            Country = $OfficeCountry[0]
+            Password = New-Password | ConvertTo-SecureString
+            Department = $Department
+            Description = $Department
+            ChangePasswordAtLogon = $True
+            Path = $OU
+        }
+
+        $User
+    }
+
+    foreach ($User in $Users) {
+        New-AdUser @$User
+    }
 }
