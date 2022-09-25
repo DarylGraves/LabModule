@@ -121,7 +121,7 @@ function New-LabUser {
 
     #TODO: If moving back to the Scratchpad you need to swap this variable.
     #$DataFolderPath = $MyInvocation.PSScriptRoot + "\LabModule\Data\"
-    $DataFolderPath = $MyInvocation.PSScriptRoot + "\Data\"
+    $DataFolderPath = $MyInvocation.MyCommand.Module.ModuleBase + "\Data\"
 
     $FirstnamesFile = $DataFolderPath + "Firstnames.txt"
     $SurnamesFile = $DataFolderPath + "Surnames.txt"
@@ -150,16 +150,16 @@ function New-LabUser {
 
         #TODO: If username already exists...
 
-        $User = [PSCustomObject]@{
+        $User = @{
             EmployeeNumber = $EmployeeNumber + $i
-            Firstname = $Firstname
+            GivenName = $Firstname
             Surname = $Surname
-            Fullname = $Firstname + " " + $Surname
-            Username = $Username
+            Name = $Firstname + " " + $Surname
+            UserPrincipalName = $Username
             Office = $Office
             City = $OfficeCountry[1]
             Country = $OfficeCountry[0]
-            Password = New-Password | ConvertTo-SecureString
+            Password = New-Password | ConvertTo-SecureString -AsPlainText -Force
             Department = $Department
             Description = $Department
             ChangePasswordAtLogon = $True
