@@ -8,7 +8,7 @@
     $Password = ""
 
     for ($i = 0; $i -lt $Length; $i++) {
-        $Password += $AvailableChars[(Get-Random -Minimum 0 -Maximum $AvailableChars.Count)]
+        $Password += [char] $AvailableChars[(Get-Random -Minimum 0 -Maximum $AvailableChars.Count)]
     }
 
     return $Password
@@ -120,8 +120,8 @@ function New-LabUser {
     
 
     #TODO: If moving back to the Scratchpad you need to swap this variable.
-    #$DataFolderPath = $MyInvocation.PSScriptRoot + "\LabModule\Data\"
-    $DataFolderPath = $MyInvocation.MyCommand.Module.ModuleBase + "\Data\"
+    $DataFolderPath = $MyInvocation.PSScriptRoot + "\LabModule\Data\"
+    #$DataFolderPath = $MyInvocation.MyCommand.Module.ModuleBase + "\Data\"
 
     $FirstnamesFile = $DataFolderPath + "Firstnames.txt"
     $SurnamesFile = $DataFolderPath + "Surnames.txt"
@@ -149,17 +149,19 @@ function New-LabUser {
         $Department = Get-Department
 
         #TODO: If username already exists...
-
+        
         $User = @{
             EmployeeNumber = $EmployeeNumber + $i
             GivenName = $Firstname
             Surname = $Surname
             Name = $Firstname + " " + $Surname
+            DisplayName = $Firstname + " " + $Surname
             UserPrincipalName = $Username
+            SamAccountName = $Username
             Office = $Office
             City = $OfficeCountry[1]
             Country = $OfficeCountry[0]
-            AccountPassword = New-Password | ConvertTo-SecureString -AsPlainText -Force
+            AccountPassword = (New-Password | ConvertTo-SecureString -AsPlainText -Force)
             Department = $Department
             Description = $Department
             ChangePasswordAtLogon = $True
@@ -170,6 +172,6 @@ function New-LabUser {
     }
 
     foreach ($User in $Users) {
-        New-AdUser @$User
+        New-AdUser @User
     }
 }
