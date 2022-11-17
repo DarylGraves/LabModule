@@ -1,4 +1,17 @@
-﻿function New-Password {
+﻿<#
+.SYNOPSIS
+Generates a random password
+
+.DESCRIPTION
+Generates a random password - Used in New-LabUser()
+
+.PARAMETER Length
+Length of the password, by default this is 24.
+
+.EXAMPLE
+New-Password -Length 30
+#>
+function New-Password {
     param (
         [Int]$Length = 24
     )
