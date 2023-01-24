@@ -27,6 +27,16 @@ function New-Password {
     return $Password
 }
 
+<#
+.SYNOPSIS
+Get a valid department
+
+.DESCRIPTION
+Gets a department - Used in New-LabUser()
+
+.EXAMPLE
+Get-Department
+#>
 function Get-Department {
     $Departments = @(
                     "Administration",
