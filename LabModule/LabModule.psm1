@@ -44,28 +44,25 @@ function New-LabOffice {
     param (
         [String]$Office,
         [String]$Server,
-        [System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty
+        [PSCredential]$Credential = [PSCredential]::Empty
     )
     
-    $ScriptBlock = {
-        param($Office)
-        $Domain = $ENV:USERDNSDOMAIN.Split(".")
-        $Domain = "DC=$($Domain[0]),DC=$($Domain[1])"
+    $Params = @{}
 
-        New-ADOrganizationalUnit -Name $Office -Description $Office
-
-        New-ADOrganizationalUnit -Name "Computers" -Description "$Office Computers" -Path "OU=$Office,$Domain"
-        New-ADOrganizationalUnit -Name "Clients" -Description "$Office Client Computers" -Path "OU=Computers,OU=$Office,$Domain"
-        New-ADOrganizationalUnit -Name "Servers" -Description "$Office Servers" -Path "OU=Computers,OU=$Office,$Domain"
-        New-ADOrganizationalUnit -Name "Users" -Description "$Office Users" -Path "OU=$Office,$Domain"
+    if ($Server) {
+        $Params.Server = $Server
     }
 
-    if ($Null -ne $Server) {
-        Invoke-Command -ComputerName $Server -Credential $Credential -ArgumentList $Office -ScriptBlock $ScriptBlock
+    if ($Credential -ne [PSCredential]::Empty) {
+        $Params.Credential = $Credential
     }
-    else {
-        . $ScriptBlock $Office
-    }
+
+    $OfficeOu = New-ADOrganizationalUnit @Params -Name $Office -Description $Office -PassThru
+    New-ADOrganizationalUnit @Params -Name "Users" -Description "$Office Staff" -Path $OfficeOu.DistinguishedName
+
+    $ComputersOu = New-ADOrganizationalUnit @Params -Name "Computers" -Description "$Office Computers" -Path $OfficeOu.DistinguishedName -PassThru
+    New-ADOrganizationalUnit @Params -Name "Clients" -Description "$Office Client Computers" -Path $ComputersOu.DistinguishedName
+    New-ADOrganizationalUnit @Params -Name "Servers" -Description "$Office Servers" -Path $ComputersOu.DistinguishedName
 }
 
 <#
@@ -85,26 +82,21 @@ function Remove-LabOffice {
     param (
         [String]$Office,
         [String]$Server,
-        [System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty
+        [pscredential]$Credential = [pscredential]::Empty
     )   
 
-    $ScriptBlock = {
-        param($Office)
-        $Domain = $ENV:USERDNSDOMAIN.Split(".")
-        $Domain = "DC=$($Domain[0]),DC=$($Domain[1])"
+    $Params = @{}
 
-        Get-ADOrganizationalUnit -Identity "OU=$Office,$Domain" | 
-            Set-ADObject -ProtectedFromAccidentalDeletion $false -PassThru |
-            Remove-ADOrganizationalUnit -Recursive
+    if ($Server) {
+        $Params.Server = $Server
     }
+
+    if ($Credential -ne [PsCredential]::Empty) {
+        $Params.Credential = $Credential
+    }
+
+    $TargetOu = Get-ADOrganizationalUnit -Filter "Name -like '$Office'" @Params
+    Set-ADObject $TargetOu -ProtectedFromAccidentalDeletion $False -PassThru | Remove-ADOrganizationalUnit -Recursive -Confirm:$False
 
     #TODO: Remove-LabOffice: Better validation - What happens if computers/users are in there? Move to Unsorted OU? What if Unsorted OU isn't there?
-    #TODO: Remove-LabOffice: Confirm Switch so you don't have to confirm it
-
-    if ($Null -ne $Server) {
-        Invoke-Command -ComputerName $Server -Credential $Credential -ArgumentList $Office -ScriptBlock $ScriptBlock
-    }
-    else {
-        . $ScriptBlock
-    }
 }
