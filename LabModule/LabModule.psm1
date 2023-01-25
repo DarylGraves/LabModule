@@ -119,10 +119,14 @@ function Initialize-Lab {
     param (
         [string]$Server,
         [pscredential]$Credential = [pscredential]::Empty,
-        [int]$NumberOfOffices = 5,
+        [int]$NumberOfOffices = 10,
         [int]$NumberOfStaff = 250
     )
-
+    
+    if ($NumberOfStaff -gt 10000) {
+        Write-Error "Max staff is 10,000. Don't be silly." 
+        exit
+    }
     $AdParams = @{}
     $ExeParams = @{}
     $ModulePath = $MyInvocation.MyCommand.Module.ModuleBase
@@ -158,8 +162,40 @@ function Initialize-Lab {
     }
 
     $UsersNameFile = Import-Csv -Path "$ModulePath\Data\Names.csv"
-
-    #TODO: Create 300 Staff
+    $FirstNames = $UsersNameFile.FirstName | Sort-Object { Get-Random }
+    $Sirnames = $UsersNameFile.Sirname | Sort-Object { Get-Random }
+    $Roles = Import-Csv -Path "$ModulePath\Data\Roles.csv"
     
+    for ($i = 0; $i -lt $NumberOfStaff; $i++) {
+        $TargetOffice = $OfficesDone | Sort-Object { Get-Random } | Select-Object -First 1
+        $OfficeOu = (( Get-ADOrganizationalUnit @AdParams -Filter "name -like '$TargetOffice'").DistinguishedName)
+        $TargetOu = "OU=Users," + $OfficeOu
+        $Role = $Roles | Sort-Object{ Get-Random } | Select -First 1
+        $UserParams = @{
+            GivenName = $Firstnames[$i]
+            Surname = $Sirnames[$i]
+            Name = $Firstnames[$i] + " " + $Sirnames[$i]
+            Displayname = $Firstnames[$i] + " " + $Sirnames[$i]
+            UserPrincipalName = $Firstnames[$i][0] + $Sirnames[$i]
+            Country = ($TargetOffice -split "-")[0]
+            City = ($TargetOffice -split "-")[1]
+            Title = ($Role.Role)
+            Department = ($Role.Department)
+            Office = ($TargetOffice -split "-")[1]
+            Description = "$($Role.Role), $($Role.Department)"
+            EmployeeID = $i
+            EmployeeNumber = $i
+            AccountPassword = (New-Password -Length 24 | ConvertTo-SecureString -AsPlainText -Force)
+            ChangePasswordAtLogon = $True
+            Enabled = $True
+            Path = $TargetOu
+            Server = ($AdParams.Server)
+            Credential = ($AdParams.Credential)
+        }
+
+        Write-Host "Creating User $($i+1) of $NumberOfStaff - $($UserParams.GivenName) $($UserParams.Surname) ($TargetOffice)" -ForegroundColor Yellow
+        #TODO: Check for duplicate names before trying to add or you get an error.
+        New-AdUSer @UserParams
+    }
 }
 
