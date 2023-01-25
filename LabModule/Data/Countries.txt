@@ -1,0 +1,65 @@
+AR-Buenos Aires
+AT-Vienna
+AU-Sydney
+AZ-Baku
+BD-Dhaka
+BE-Brussels
+BG-Sofia
+BR-Sao Paulo
+CA-Toronto
+CH-Zurich
+CL-Santiago
+CN-Beijing
+CN-Shanghai
+CO-Bogota
+CR-San Jose
+CZ-Prague
+DE-Berlin
+DK-Copenhagen
+EG-Cairo
+ES-Madrid
+FI-Helsinki
+FR-Paris
+GB-London
+GE-Tbilisi
+GR-Athens
+HK-Hong Kong
+HR-Zagreb
+HU-Budapest
+ID-Jakarta
+IE-Dublin
+IN-Mumbai
+IQ-Baghdad
+IR-Tehran
+IS-Reykjavik
+IT-Rome
+JP-Tokyo
+KG-Bishkek
+KR-Seoul
+KZ-Almaty
+LT-Vilnius
+LV-Riga
+MX-Mexico City
+MY-Kuala Lumpur
+NG-Lagos
+NL-Amsterdam
+NO-Oslo
+PH-Manila
+PK-Karachi
+PL-Warsaw
+PT-Lisbon
+RO-Bucharest
+RU-Moscow
+SA-Riyadh
+SE-Stockholm
+SI-Ljubljana
+SK-Bratislava
+TH-Bangkok
+TR-Istanbul
+UA-Kiev
+US-Los Angeles
+US-New York
+UZ-Tashkent
+VE-Caracas
+VN-Ho Chi Minh City
+ZA-Johannesburg

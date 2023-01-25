@@ -106,3 +106,38 @@ function Remove-LabOffice {
 
     Set-ADObject $TargetOu -ProtectedFromAccidentalDeletion $False -PassThru | Remove-ADOrganizationalUnit -Recursive -Confirm:$False
 }
+
+function Initialize-Lab {
+    param (
+        [string]$Server,
+        [pscredential]$Credential = [pscredential]::Empty
+    )
+
+    $AdParams = @{}
+    $ExeParams = @{}
+
+    if ($Server) {
+        $AdParams.Server = $Server
+        $ExeParams.ComputerName = $Server
+    }
+    if ($Credential) {
+        $AdParams.Credential = $Credential
+        $ExeParams.Credential = $Credential
+    }
+    
+    # Created the "Unsorted" OU
+    $UnsortedOu = New-ADOrganizationalUnit @AdParams -Name "Unsorted" -Description "Unsorted Objects" -PassThru
+    
+    #Redirect Computers and Users
+    Invoke-Command @ExeParams -ArgumentList $UnsortedOu.DistinguishedName -ScriptBlock {
+        param($Ou)
+        Write-Host "Redirecting new Computers to $Ou - " -NoNewline
+        redircmp.exe $Ou
+        Write-Host "Redirecting new Users to $Ou - " -NoNewline
+        redirusr.exe $Ou
+    }
+
+    #TODO: Create 8x Offices
+    #TODO: Create 300 Staff
+    
+}
