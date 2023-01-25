@@ -119,7 +119,8 @@ function Initialize-Lab {
     param (
         [string]$Server,
         [pscredential]$Credential = [pscredential]::Empty,
-        [int]$NumberOfOffices = 5
+        [int]$NumberOfOffices = 5,
+        [int]$NumberOfStaff = 250
     )
 
     $AdParams = @{}
@@ -142,12 +143,12 @@ function Initialize-Lab {
     Invoke-Command @ExeParams -ArgumentList $UnsortedOu.DistinguishedName -ScriptBlock {
         param($Ou)
         Write-Host "Redirecting new Computers to $Ou - " -NoNewline -ForegroundColor Yellow
-      #  redircmp.exe $Ou
+        redircmp.exe $Ou
         Write-Host "Redirecting new Users to $Ou - " -NoNewline -ForegroundColor Yellow
-      #  redirusr.exe $Ou
+        redirusr.exe $Ou
     }
 
-    $Offices = Get-Content "$ModulePath\Data\Countries.txt"
+    $Offices = Get-Content -Path "$ModulePath\Data\Countries.txt"
 
     $OfficesDone = @()
     $OfficesToCreate = $Offices | Sort-Object { Get-Random } | Select-Object -first $NumberOfOffices
@@ -156,6 +157,7 @@ function Initialize-Lab {
         $OfficesDone += $Office
     }
 
+    $UsersNameFile = Import-Csv -Path "$ModulePath\Data\Names.csv"
 
     #TODO: Create 300 Staff
     
