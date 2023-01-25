@@ -170,7 +170,7 @@ function Initialize-Lab {
         $TargetOffice = $OfficesDone | Sort-Object { Get-Random } | Select-Object -First 1
         $OfficeOu = (( Get-ADOrganizationalUnit @AdParams -Filter "name -like '$TargetOffice'").DistinguishedName)
         $TargetOu = "OU=Users," + $OfficeOu
-        $Role = $Roles | Sort-Object{ Get-Random } | Select -First 1
+        $Role = $Roles | Sort-Object{ Get-Random } | Select-Object -First 1
         $UserParams = @{
             GivenName = $Firstnames[$i]
             Surname = $Sirnames[$i]
