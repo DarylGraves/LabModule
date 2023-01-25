@@ -96,7 +96,13 @@ function Remove-LabOffice {
     }
 
     $TargetOu = Get-ADOrganizationalUnit -Filter "Name -like '$Office'" @Params
-    Set-ADObject $TargetOu -ProtectedFromAccidentalDeletion $False -PassThru | Remove-ADOrganizationalUnit -Recursive -Confirm:$False
+    $ObjectsToMove = Get-ADObject -SearchBase $TargetOu.DistinguishedName -Filter "ObjectClass -ne 'OrganizationalUnit'" @Params 
+    $UnsortedOu = Get-ADObject -Filter "Name -like 'Unsorted'" @Params | Where-Object ObjectClass -like "OrganizationalUnit"
 
-    #TODO: Remove-LabOffice: Better validation - What happens if computers/users are in there? Move to Unsorted OU? What if Unsorted OU isn't there?
+    foreach ($object in $ObjectsToMove) {
+        Write-Host "Moving $($Object.DistinguishedName)"
+        Move-ADObject -Identity $Object.DistinguishedName -TargetPath $UnsortedOu.DistinguishedName @Params
+    }
+
+    Set-ADObject $TargetOu -ProtectedFromAccidentalDeletion $False -PassThru | Remove-ADOrganizationalUnit -Recursive -Confirm:$False
 }
