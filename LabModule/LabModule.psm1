@@ -110,11 +110,13 @@ function Remove-LabOffice {
 function Initialize-Lab {
     param (
         [string]$Server,
-        [pscredential]$Credential = [pscredential]::Empty
+        [pscredential]$Credential = [pscredential]::Empty,
+        [int]$NumberOfOffices = 5
     )
 
     $AdParams = @{}
     $ExeParams = @{}
+    $ModulePath = $MyInvocation.MyCommand.Module.ModuleBase
 
     if ($Server) {
         $AdParams.Server = $Server
@@ -131,13 +133,27 @@ function Initialize-Lab {
     #Redirect Computers and Users
     Invoke-Command @ExeParams -ArgumentList $UnsortedOu.DistinguishedName -ScriptBlock {
         param($Ou)
-        Write-Host "Redirecting new Computers to $Ou - " -NoNewline
-        redircmp.exe $Ou
-        Write-Host "Redirecting new Users to $Ou - " -NoNewline
-        redirusr.exe $Ou
+        Write-Host "Redirecting new Computers to $Ou - " -NoNewline -ForegroundColor Yellow
+      #  redircmp.exe $Ou
+        Write-Host "Redirecting new Users to $Ou - " -NoNewline -ForegroundColor Yellow
+      #  redirusr.exe $Ou
     }
 
-    #TODO: Create 8x Offices
+    #TODO: Create 5x Offices
+    $Offices = Get-Content "$ModulePath\Data\Countries.txt"
+
+    $OfficesDone = @()
+
+    $OfficesToCreate = $Offices | Sort-Object { Get-Random } | Select-Object -first $NumberOfOffices
+
+    foreach ($Office in $OfficesToCreate) {
+        Write-Host "Creating Office OU: $Office" -ForegroundColor Yellow
+        New-LabOffice @AdParams -Office $Office
+        $OfficesDone += $Office
+    }
+
+
     #TODO: Create 300 Staff
     
 }
+
