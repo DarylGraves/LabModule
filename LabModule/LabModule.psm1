@@ -57,7 +57,15 @@ function New-LabOffice {
         $Params.Credential = $Credential
     }
 
-    $OfficeOu = New-ADOrganizationalUnit @Params -Name $Office -Description $Office -PassThru
+    # Check "Offices" OU Exists:
+    $Ou = Get-ADOrganizationalUnit @Params -Filter "Name -like 'Offices'"
+    if ($null -eq $Ou) {
+        Write-Host "Creating 'Offices' OU" -ForegroundColor Yellow
+        $Ou = New-ADOrganizationalUnit @Params -Name "Offices" -Description "Offices OU" -PassThru
+    }
+
+    Write-Host "Creating Office OU: $Office" -ForegroundColor Yellow
+    $OfficeOu = New-ADOrganizationalUnit @Params -Name $Office -Description $Office -Path $Ou.DistinguishedName -PassThru
     New-ADOrganizationalUnit @Params -Name "Users" -Description "$Office Staff" -Path $OfficeOu.DistinguishedName
 
     $ComputersOu = New-ADOrganizationalUnit @Params -Name "Computers" -Description "$Office Computers" -Path $OfficeOu.DistinguishedName -PassThru
@@ -139,15 +147,11 @@ function Initialize-Lab {
       #  redirusr.exe $Ou
     }
 
-    #TODO: Create 5x Offices
     $Offices = Get-Content "$ModulePath\Data\Countries.txt"
 
     $OfficesDone = @()
-
     $OfficesToCreate = $Offices | Sort-Object { Get-Random } | Select-Object -first $NumberOfOffices
-
     foreach ($Office in $OfficesToCreate) {
-        Write-Host "Creating Office OU: $Office" -ForegroundColor Yellow
         New-LabOffice @AdParams -Office $Office
         $OfficesDone += $Office
     }
