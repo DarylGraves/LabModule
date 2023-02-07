@@ -152,6 +152,7 @@ function Initialize-Lab {
         redirusr.exe $Ou
     }
 
+    # Create the offices
     $Offices = Get-Content -Path "$ModulePath\Data\Countries.txt"
 
     $OfficesDone = @()
@@ -161,22 +162,55 @@ function Initialize-Lab {
         $OfficesDone += $Office
     }
 
+    # Create the Users
     $UsersNameFile = Import-Csv -Path "$ModulePath\Data\Names.csv"
     $FirstNames = $UsersNameFile.FirstName | Sort-Object { Get-Random }
     $Sirnames = $UsersNameFile.Sirname | Sort-Object { Get-Random }
     $Roles = Import-Csv -Path "$ModulePath\Data\Roles.csv"
-    
+
+    $Users = @() # Used to store created SamAccountNames so we can check we don't make duplicates
     for ($i = 0; $i -lt $NumberOfStaff; $i++) {
+        # Picking a random Office and Role for the user
         $TargetOffice = $OfficesDone | Sort-Object { Get-Random } | Select-Object -First 1
         $OfficeOu = (( Get-ADOrganizationalUnit @AdParams -Filter "name -like '$TargetOffice'").DistinguishedName)
         $TargetOu = "OU=Users," + $OfficeOu
         $Role = $Roles | Sort-Object{ Get-Random } | Select-Object -First 1
+        
+        # Find unique SamAccountName
+        $Numbering = 0
+        do {
+            $User = $Null
+            try {
+                if ($Numbering -eq 0) {
+                    $User = Get-ADUser @AdParams -Identity ($Firstnames[$i][0] + $Sirnames[$i])
+                    $Numbering++
+                }
+                else {
+                    $User = Get-ADUser @AdParams -Identity ($Firstnames[$i][0] + $Sirnames[$i] + $Numbering)
+                    $Numbering++
+                }
+            }
+            catch {
+                $Numbering++
+            }
+        } until ( $Null -eq $User )
+
+        if ($Numbering -eq 1) {
+            $SamAccountName = ($Firstnames[$i][0] + $Sirnames[$i])
+        } else {
+            $SamAccountName = ($Firstnames[$i][0] + $Sirnames[$i] + $Numbering)
+        }
+
+        $Users += $SamAccountName
+        
+        # Create the splat
         $UserParams = @{
             GivenName = $Firstnames[$i]
             Surname = $Sirnames[$i]
             Name = $Firstnames[$i] + " " + $Sirnames[$i]
             Displayname = $Firstnames[$i] + " " + $Sirnames[$i]
-            UserPrincipalName = $Firstnames[$i][0] + $Sirnames[$i]
+            SamAccountName = $SamAccountName
+            UserPrincipalName = $SamAccountName
             Country = ($TargetOffice -split "-")[0]
             City = ($TargetOffice -split "-")[1]
             Title = ($Role.Role)
@@ -194,8 +228,8 @@ function Initialize-Lab {
         }
 
         Write-Host "Creating User $($i+1) of $NumberOfStaff - $($UserParams.GivenName) $($UserParams.Surname) ($TargetOffice)" -ForegroundColor Yellow
-        #TODO: Check for duplicate names before trying to add or you get an error.
         New-AdUSer @UserParams
+
+        #TODO: Store the password somewhere for reference
     }
 }
-
