@@ -11,7 +11,7 @@ Length of the password, by default this is 24.
 .EXAMPLE
 New-Password -Length 30
 #>
-function New-Password {
+function New-LabPassword {
     param (
         [Int]$Length = 24
     )
@@ -168,7 +168,6 @@ function Initialize-Lab {
     $Sirnames = $UsersNameFile.Sirname | Sort-Object { Get-Random }
     $Roles = Import-Csv -Path "$ModulePath\Data\Roles.csv"
 
-    $Users = @() # Used to store created SamAccountNames so we can check we don't make duplicates
     for ($i = 0; $i -lt $NumberOfStaff; $i++) {
         # Picking a random Office and Role for the user
         $TargetOffice = $OfficesDone | Sort-Object { Get-Random } | Select-Object -First 1
@@ -201,8 +200,7 @@ function Initialize-Lab {
             $SamAccountName = ($Firstnames[$i][0] + $Sirnames[$i] + $Numbering)
         }
 
-        $Users += $SamAccountName
-        
+        $Password = New-LabPassword -Length 24 
         # Create the splat
         $UserParams = @{
             GivenName = $Firstnames[$i]
@@ -219,17 +217,21 @@ function Initialize-Lab {
             Description = "$($Role.Role), $($Role.Department)"
             EmployeeID = $i
             EmployeeNumber = $i
-            AccountPassword = (New-Password -Length 24 | ConvertTo-SecureString -AsPlainText -Force)
+            AccountPassword = ($Password | ConvertTo-SecureString -AsPlainText -Force)
             ChangePasswordAtLogon = $True
             Enabled = $True
             Path = $TargetOu
             Server = ($AdParams.Server)
             Credential = ($AdParams.Credential)
+            OtherAttributes = @{
+                "Comment" = $Password
+            }
+            
         }
 
-        Write-Host "Creating User $($i+1) of $NumberOfStaff - $($UserParams.GivenName) $($UserParams.Surname) ($TargetOffice)" -ForegroundColor Yellow
+        Write-Host "Creating User $($i+1) of $NumberOfStaff - $($UserParams.GivenName) $($UserParams.Surname) ($TargetOffice)" -ForegroundColor Yellow 
+        
         New-AdUSer @UserParams
 
-        #TODO: Store the password somewhere for reference
     }
 }
