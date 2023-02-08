@@ -115,6 +115,32 @@ function Remove-LabOffice {
     Set-ADObject $TargetOu -ProtectedFromAccidentalDeletion $False -PassThru | Remove-ADOrganizationalUnit -Recursive -Confirm:$False
 }
 
+<#
+.SYNOPSIS
+Creates a Home Lab in seconds
+.DESCRIPTION
+Creates a Home Lab in seconds - Redirects new Users and Computers into an Unsorted OU, creates Office OUs and Users
+
+.PARAMETER Server
+An Active Directory Domain Controller. If left blank, attempts to action requests on localhost.
+
+.PARAMETER Credential
+Domain Admin Credentials
+
+.PARAMETER NumberOfOffices
+How many Office OUs should be created.
+
+.PARAMETER NumberOfStaff
+How many members of staff should be created.
+
+.EXAMPLE
+Initialize-Lab -Server "MyDc01" -Credential (Get-Credential) -NumberofStaff 100 -NumberOfOffices 3
+
+.NOTES
+Please note this is not designed for a produciton. User's passwords are saved to Active Directory themselves so you can use these which is a big no-no in IT Security.
+
+Passowrds are stored in the "Comment" section of Active Directory. This can be retrieved via Active Directory Users and Computers by enabling Advanced Features or by using the following Powershell cmdlet: "Get-AdUser <Name> -Properties Commemnt"
+#>
 function Initialize-Lab {
     param (
         [string]$Server,
@@ -127,6 +153,7 @@ function Initialize-Lab {
         Write-Error "Max staff is 10,000. Don't be silly." 
         exit
     }
+
     $AdParams = @{}
     $ExeParams = @{}
     $ModulePath = $MyInvocation.MyCommand.Module.ModuleBase
@@ -140,16 +167,66 @@ function Initialize-Lab {
         $ExeParams.Credential = $Credential
     }
     
+    # Prompt user to accept risks
+    Clear-Host 
+    if ([System.Console]::WindowWidth -gt 80 ) {
+        Write-Host "
+      _   _                      _          _        ___   ___   ___   ___  
+     | | | | ___  _ __ ___   ___| |    __ _| |__    / _ \ / _ \ / _ \ / _ \ 
+     | |_| |/ _ \| '_ ` _ \ / _ \ |   / _` | '_ \  | (_) | | | | | | | | | |
+     |  _  | (_) | | | | | |  __/ |__| (_| | |_) |  \__, | |_| | |_| | |_| |
+     |_| |_|\___/|_| |_| |_|\___|_____\__,_|_.__/     /_/ \___/ \___/ \___/ 
+                                                                            
+                    For all your HomeLabbing needs!" -ForegroundColor Green
+    }
+    else {
+        Write-Host "HomeLab 9000: For all your HomeLabbing needs!" -ForegroundColor Green
+    }
+    
+    Start-Sleep -Seconds 2
+
+    Write-Host "`n***WARNING*** This Cmdlet creates uses and stores the passwords in Active Directory!`n" -ForegroundColor Yellow
+    Write-Host "Everyone can see the passwords so under no circumstances should this be used in Production!`n" -ForegroundColor Yellow
+
+    $IsValid = $False
+    do {
+        $UserInput = Read-Host -Prompt "Please enter 'Y' to confirm you understand this. Ctrl+C to cancel"
+        if ($UserInput -eq "Y") {
+            $IsValid = $True
+        }
+    } while (
+        $IsValid -eq $False
+    )
+
+    try {
+        $AdEnv = Get-ADRootDSE @AdParams
+        Write-Host "Domain found on target: $($AdEnv.defaultNamingContext)" -ForegroundColor Green
+    }
+    catch {
+        if ($Server -eq "") {
+            Write-Host "Error: Could not find Domain on Local Machine. Aborting..." -ForegroundColor Yellow
+        }
+        else{
+            Write-Host "Error: Could not find Domain on $Server. Potentially wrong credentials or maybe you're not targeting a Domain Controller? Either way, aborting..." -ForegroundColor Yellow
+        }
+        return
+    }
+
     # Created the "Unsorted" OU
-    $UnsortedOu = New-ADOrganizationalUnit @AdParams -Name "Unsorted" -Description "Unsorted Objects" -PassThru
+    try {
+        $UnsortedOu = New-ADOrganizationalUnit @AdParams -Name "Unsorted" -Description "Unsorted Objects" -PassThru
+    }
+    catch {
+        $UnsortedOu = Get-ADOrganizationalUnit @AdParams -Filter "Name -like 'Unsorted'"
+    }
     
     #Redirect Computers and Users
     Invoke-Command @ExeParams -ArgumentList $UnsortedOu.DistinguishedName -ScriptBlock {
         param($Ou)
-        Write-Host "Redirecting new Computers to $Ou - " -NoNewline -ForegroundColor Yellow
-        redircmp.exe $Ou
-        Write-Host "Redirecting new Users to $Ou - " -NoNewline -ForegroundColor Yellow
-        redirusr.exe $Ou
+        Write-Host "Redirecting new Computers to $Ou" -ForegroundColor Yellow
+        redircmp.exe $Ou | Out-Null
+        Write-Host "Redirecting new Users to $Ou" -ForegroundColor Yellow
+        redirusr.exe $Ou | Out-Null
     }
 
     # Create the offices
@@ -158,8 +235,13 @@ function Initialize-Lab {
     $OfficesDone = @()
     $OfficesToCreate = $Offices | Sort-Object { Get-Random } | Select-Object -first $NumberOfOffices
     foreach ($Office in $OfficesToCreate) {
-        New-LabOffice @AdParams -Office $Office
-        $OfficesDone += $Office
+        try {
+            New-LabOffice @AdParams -Office $Office
+            $OfficesDone += $Office
+        }
+        catch {
+            Write-Host "Attempted to create $Office OU but it failed (Either cred issue or OU already exists)" -ForegroundColor Yellow
+        }
     }
 
     # Create the Users
@@ -200,8 +282,8 @@ function Initialize-Lab {
             $SamAccountName = ($Firstnames[$i][0] + $Sirnames[$i] + $Numbering)
         }
 
-        $Password = New-LabPassword -Length 24 
         # Create the splat
+        $Password = New-LabPassword -Length 24 
         $UserParams = @{
             GivenName = $Firstnames[$i]
             Surname = $Sirnames[$i]
