@@ -173,7 +173,7 @@ function Initialize-Lab {
         Write-Host "
       _   _                      _          _        ___   ___   ___   ___  
      | | | | ___  _ __ ___   ___| |    __ _| |__    / _ \ / _ \ / _ \ / _ \ 
-     | |_| |/ _ \| '_ ` _ \ / _ \ |   / _` | '_ \  | (_) | | | | | | | | | |
+     | |_| |/ _ \| '_   _ \ / _ \ |   / _  |  _ \  | (_) | | | | | | | | | |
      |  _  | (_) | | | | | |  __/ |__| (_| | |_) |  \__, | |_| | |_| | |_| |
      |_| |_|\___/|_| |_| |_|\___|_____\__,_|_.__/     /_/ \___/ \___/ \___/ 
                                                                             
@@ -185,6 +185,41 @@ function Initialize-Lab {
     
     Start-Sleep -Seconds 2
 
+    # Test Invoke-Command because this all breaks without it.
+    Write-Host "`nTesting Invoke-Command... " -ForegroundColor Yellow -NoNewline
+    try {
+        Invoke-Command @ExeParams -ScriptBlock { Write-Host "Success!" -ForegroundColor Green} -ErrorAction Stop
+    }
+    catch {
+        Write-Host "Fail." -ForegroundColor Red
+        Write-Host "`nBefore you can use this script remotely you will need to add your local machine to the remote Domain Controller's Trust Hosts.`nConnect directly to the Domain Controller and then run the below:`n" -ForegroundColor Yellow
+        Write-Host "`twinrm set winrm/config/client '@{TrustedHosts = " -ForegroundColor Green -NoNewline
+        Write-Host "<Your Machine's Computer Name>" -ForegroundColor Blue -NoNewline
+        Write-Host "}'`n" -ForegroundColor Green
+        Write-Host "You can verify the output with:`n" -ForegroundColor Yellow
+        Write-Host "`twinrm get winrm/config/client`n" -ForegroundColor Green
+        Write-Host "Make sure you also use the FQDN for the Domain Controller - This includes the Domain Suffix at the end!" -ForegroundColor Yellow
+        Write-Host "Exiting...`n" -ForegroundColor Yellow
+        return
+    }
+
+    # Retrieve the Domain Details:
+    try {
+        $AdEnv = Get-ADRootDSE @AdParams
+        Write-Host "Domain found on target: " -ForegroundColor Yellow -NoNewLine
+        Write-Host "$($AdEnv.defaultNamingContext)" -ForegroundColor Green
+    }
+    catch {
+        if ($Server -eq "") {
+            Write-Host "Error: Could not find Domain on Local Machine. Aborting..." -ForegroundColor Yellow
+        }
+        else{
+            Write-Host "Error: Could not find Domain on $Server. Potentially wrong credentials or maybe you're not targeting a Domain Controller? Either way, aborting..." -ForegroundColor Yellow
+        }
+        return
+    }
+
+    # Passed the test, so starting the script:
     Write-Host "`n***WARNING*** This Cmdlet creates uses and stores the passwords in Active Directory!`n" -ForegroundColor Yellow
     Write-Host "Everyone can see the passwords so under no circumstances should this be used in Production!`n" -ForegroundColor Yellow
 
@@ -198,35 +233,54 @@ function Initialize-Lab {
         $IsValid -eq $False
     )
 
+    # Creating the "Unsorted" OU
     try {
-        $AdEnv = Get-ADRootDSE @AdParams
-        Write-Host "Domain found on target: $($AdEnv.defaultNamingContext)" -ForegroundColor Green
-    }
-    catch {
-        if ($Server -eq "") {
-            Write-Host "Error: Could not find Domain on Local Machine. Aborting..." -ForegroundColor Yellow
-        }
-        else{
-            Write-Host "Error: Could not find Domain on $Server. Potentially wrong credentials or maybe you're not targeting a Domain Controller? Either way, aborting..." -ForegroundColor Yellow
-        }
-        return
-    }
-
-    # Created the "Unsorted" OU
-    try {
+        Write-Host "`nCreating Unsorted OU..." -ForegroundColor Yellow
         $UnsortedOu = New-ADOrganizationalUnit @AdParams -Name "Unsorted" -Description "Unsorted Objects" -PassThru
     }
     catch {
+        Write-Host "Already exists!" -ForegroundColor Yellow
         $UnsortedOu = Get-ADOrganizationalUnit @AdParams -Filter "Name -like 'Unsorted'"
     }
     
-    #Redirect Computers and Users
-    Invoke-Command @ExeParams -ArgumentList $UnsortedOu.DistinguishedName -ScriptBlock {
-        param($Ou)
+    #Redirect Computers and Users, Hide Default Containers
+    Invoke-Command @ExeParams -ArgumentList $UnsortedOu.DistinguishedName, $AdEnv -ScriptBlock {
+        param($Ou, $AdEnv)
         Write-Host "Redirecting new Computers to $Ou" -ForegroundColor Yellow
         redircmp.exe $Ou | Out-Null
         Write-Host "Redirecting new Users to $Ou" -ForegroundColor Yellow
         redirusr.exe $Ou | Out-Null
+
+        Import-Module ActiveDirectory
+        Set-Location Ad:\$($AdEnv.DefaultNamingContext)
+        Write-Host "Setting containers on the root to only appear in Advanced View" -ForegroundColor Yellow
+        try {
+            $Containers = Get-ChildItem | Where-Object { ( $_.ObjectClass -like "Container" ) -or ( $_.ObjectClass -like "builtInDomain" ) }
+            $Containers.DistinguishedName | ForEach-Object { Set-ADObject -Identity $_ -Replace @{ "showInAdvancedViewOnly" = $True }  }
+        }
+        catch {
+            Write-Host "Error occured..." -ForegroundColor Red
+        }
+    }
+
+    # Create Groups 
+    try {
+        Write-Host "Creating Group OUs" -ForegroundColor Yellow
+        $GroupOu = New-ADOrganizationalUnit @AdParams -Name "Groups" -Description "Groups" -PassThru
+        New-ADOrganizationalUnit @AdParams -Name "Global" -Description "Add Users to these Groups" -Path $GroupOu.DistinguishedName
+        New-ADOrganizationalUnit @AdParams -Name "Domain Local" -Description "Add Global Groups to these. Do not add individual users!" -Path $GroupOu.DistinguishedName
+    }
+    catch {
+        Write-Host "Error occured..." -ForegroundColor Red
+    }
+
+    # Create Admin Account Location
+    try {
+        Write-Host "Creating Elevated Accounts OU" -ForegroundColor Yellow
+        New-ADOrganizationalUnit @AdParams -Name "Elevated Accounts" -Description "IT Admin Accounts Only"
+    }
+    catch {
+        Write-Host "Error occcured, may already exist" -ForegroundColor Red
     }
 
     # Create the offices
