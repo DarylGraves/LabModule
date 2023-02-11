@@ -371,6 +371,3 @@ function Initialize-Lab {
 
     }
 }
-
-#TODO: Need to make Initialize Module move things out of Containers and hide them
-#TODO: Need to create Groups OU with different options (Groups -> Domain Local and Groups -> Global). Domain Local drive ACL but only Global Groups have users. They go into Domain Locals.
